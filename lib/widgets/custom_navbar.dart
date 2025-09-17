@@ -25,10 +25,9 @@ class CustomNavBar extends StatelessWidget implements PreferredSizeWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _navItem("Dashboard", () {}),
-                    _navItem("Tests", () {}),
-                    _navItem("Practice", () {}),
-                    _navItem("Reports", () {}),
+                    _navItem("Dashboard", () {Navigator.pushReplacementNamed(context, '/analytics');}),
+                    _navItem("Tests", () {Navigator.pushReplacementNamed(context, '/selection');}),
+                    _navItem("Practice", () {Navigator.pushReplacementNamed(context, '/test');}),
                   ],
                 ),
                 const Spacer(),

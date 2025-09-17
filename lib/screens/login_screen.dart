@@ -64,7 +64,9 @@ class LoginScreen extends StatelessWidget {
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8)),
                               ),
-                              onPressed: () {},
+                              onPressed: () {
+                                Navigator.pushReplacementNamed(context, '/selection'); // Temporary
+                              },
                               child: const Text("Login",
                                   style: TextStyle(
                                       fontSize: 16, color: Colors.white)),

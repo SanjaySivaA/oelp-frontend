@@ -21,7 +21,9 @@ class SelectionScreen extends StatelessWidget {
             ),
             ListTile(
               title: const Text("Dashboard"),
-              onTap: () {},
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/analytics');
+              },
             ),
             ListTile(
               title: const Text("Tests"),
@@ -29,11 +31,9 @@ class SelectionScreen extends StatelessWidget {
             ),
             ListTile(
               title: const Text("Practice"),
-              onTap: () {},
-            ),
-            ListTile(
-              title: const Text("Reports"),
-              onTap: () {},
+              onTap: () {
+                Navigator.pushReplacementNamed(context, '/test');
+              },
             ),
           ],
         ),

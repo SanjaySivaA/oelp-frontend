@@ -52,6 +52,7 @@ class BottomActionButtons extends ConsumerWidget {
             type: ButtonType.primary,
             onPressed: () {
               ref.read(testProvider.notifier).submitTest();
+              Navigator.pushReplacementNamed(context, '/analytics');
             },
           ),
         ],
