@@ -5,7 +5,10 @@ import '../models/test_models.dart';
 import '../models/auth_models.dart';
 
 class ApiService {
-  final String _baseUrl = "http://localhost:8000"; // placeholder
+  static const _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000',
+  );
 
   Future<RegisterResponse> registerUser({
     required String name,
