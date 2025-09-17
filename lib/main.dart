@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Auth Page',
+      title: 'MockTest Platform',
       theme: ThemeData(
       primaryColor: const Color(0xFF299FE8),
       fontFamily: "Inter",

@@ -61,7 +61,7 @@ class RegisterScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onPressed: () {},
+                    onPressed: () {Navigator.pushReplacementNamed(context, '/selection');},
                     child: const Text(
                       "Create Account",
                       style: TextStyle(fontSize: 16, color: Colors.white),

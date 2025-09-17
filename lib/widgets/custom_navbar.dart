@@ -18,7 +18,7 @@ class CustomNavBar extends StatelessWidget implements PreferredSizeWidget {
             title: Row(
               children: [
                 const Text(
-                  "CBT Platform",
+                  "MockTest Platform",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 const Spacer(),
@@ -33,14 +33,14 @@ class CustomNavBar extends StatelessWidget implements PreferredSizeWidget {
                 const Spacer(),
                 Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none, color: Colors.white),
-                      onPressed: () {},
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.settings, color: Colors.white),
-                      onPressed: () {},
-                    ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.notifications_none, color: Colors.white),
+                    //   onPressed: () {},
+                    // ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.settings, color: Colors.white),
+                    //   onPressed: () {},
+                    // ),
                     const CircleAvatar(
                       radius: 18,
                       backgroundColor: Colors.white,
