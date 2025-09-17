@@ -46,7 +46,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   AuthNotifier(this._apiService) : super(AuthState()) {
-    checkInitialAuth();
   }
 
   Future<void> checkInitialAuth() async {
