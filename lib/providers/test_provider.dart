@@ -233,7 +233,7 @@ class TestNotifier extends StateNotifier<TestState> {
   }
 }
 
-// --- GLOBAL PROVIDER (UNMODIFIED) ---
+
 final testProvider = StateNotifierProvider<TestNotifier, TestState>((ref) {
   final apiService = ref.read(apiServiceProvider);
   return TestNotifier(apiService);

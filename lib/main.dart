@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend/auth/auth_gate.dart';
 
 import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
@@ -25,7 +26,8 @@ class MyApp extends StatelessWidget {
       fontFamily: "Inter",
     ),
 
-      initialRoute: '/',
+      home: const AuthGate(),
+
       routes: {
         '/': (context) =>  const LandingPage(),
         '/login': (context) => const LoginScreen(),
