@@ -1,4 +1,4 @@
-import 'dart:convert';
+// lib/models/test_models.dart
 
 class Test {
   final String sessionId;
@@ -17,11 +17,11 @@ class Test {
 
   factory Test.fromJson(Map<String, dynamic> json) {
     return Test(
-      sessionId: json['sessionId'],
-      testId: json['testId'],
-      testName: json['testName'],
-      durationInSeconds: json['durationInSeconds'],
-      sections: (json['sections'] as List)
+      sessionId: json['sessionId'] ?? '',
+      testId: json['testId'] ?? '',
+      testName: json['testName'] ?? 'Unnamed Test',
+      durationInSeconds: json['durationInSeconds'] ?? 0,
+      sections: (json['sections'] as List? ?? [])
           .map((sectionJson) => Section.fromJson(sectionJson))
           .toList(),
     );
@@ -31,19 +31,28 @@ class Test {
 class Section {
   final String sectionId;
   final String sectionName;
+  final String questionType;
+  final int positiveMarks;
+  final int negativeMarks;
   final List<Question> questions;
 
   Section({
     required this.sectionId,
     required this.sectionName,
+    required this.questionType,
+    required this.positiveMarks,
+    required this.negativeMarks,
     required this.questions,
   });
 
   factory Section.fromJson(Map<String, dynamic> json) {
     return Section(
-      sectionId: json['sectionId'],
-      sectionName: json['sectionName'],
-      questions: (json['questions'] as List)
+      sectionId: json['sectionId'] ?? '',
+      sectionName: json['sectionName'] ?? '',
+      questionType: json['type'] ?? 'UNKNOWN',
+      positiveMarks: json['positiveMarks'] ?? 0,
+      negativeMarks: json['negativeMarks'] ?? 0,
+      questions: (json['questions'] as List? ?? [])
           .map((qJson) => Question.fromJson(qJson))
           .toList(),
     );
@@ -54,30 +63,22 @@ class Question {
   final String questionId;
   final String questionText;
   final String? questionImageUrl;
-  final String type; // "MCQ", "MSQ", "NUMERICAL"
-  final int positiveMarks;
-  final int negativeMarks;
   final List<Option> options;
 
   Question({
     required this.questionId,
     required this.questionText,
     this.questionImageUrl,
-    required this.type,
-    required this.positiveMarks,
-    required this.negativeMarks,
     required this.options,
   });
 
   factory Question.fromJson(Map<String, dynamic> json) {
     return Question(
-      questionId: json['questionId'],
-      questionText: json['questionText'],
-      questionImageUrl: json['questionImageUrl'],
-      type: json['type'],
-      positiveMarks: json['positiveMarks'],
-      negativeMarks: json['negativeMarks'],
-      options: (json['options'] as List)
+      // --- ADDED NULL CHECKS ---
+      questionId: json['questionId'] ?? 'unknown_id',
+      questionText: json['questionText'] ?? 'Error: Question text not found.',
+      questionImageUrl: json['questionImageUrl'], // Already nullable, so it's safe
+      options: (json['options'] as List? ?? [])
           .map((optJson) => Option.fromJson(optJson))
           .toList(),
     );
@@ -97,8 +98,9 @@ class Option {
 
   factory Option.fromJson(Map<String, dynamic> json) {
     return Option(
-      optionId: json['optionId'],
-      optionText: json['optionText'],
+      // --- ADDED NULL CHECKS ---
+      optionId: json['optionId'] ?? 'unknown_id',
+      optionText: json['optionText'] ?? 'Error: Option text not found.',
       optionImageUrl: json['optionImageUrl'],
     );
   }

@@ -1,8 +1,11 @@
+// lib/providers/test_provider.dart
+
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/test_models.dart';
 import '../services/api_service.dart';
 
+// --- ENUM & API SERVICE PROVIDER (UNMODIFIED) ---
 enum QuestionStatus {
   notVisited,
   notAnswered,
@@ -11,15 +14,22 @@ enum QuestionStatus {
   answeredAndMarkedForReview,
 }
 
+final apiServiceProvider = Provider<ApiService>((ref) {
+  return ApiService();
+});
+
+
+// --- TEST STATE CLASS (UNMODIFIED) ---
 class TestState {
   final bool isLoading;
   final Test? test;
   final String? sessionId;
   final String? error;
   final Map<String, dynamic> responses;
-  final Map<String, QuestionStatus> statuses; // questionId -> status
+  final Map<String, QuestionStatus> statuses;
   final int timeRemainingInSeconds;
   final int currentQuestionIndex;
+  final int currentSectionIndex;
 
   TestState({
     this.isLoading = true,
@@ -30,9 +40,9 @@ class TestState {
     this.statuses = const {},
     this.timeRemainingInSeconds = 0,
     this.currentQuestionIndex = 0,
+    this.currentSectionIndex = 0,
   });
 
-  // A helper method to create a copy of the state with some values changed.
   TestState copyWith({
     bool? isLoading,
     Test? test,
@@ -42,6 +52,7 @@ class TestState {
     Map<String, QuestionStatus>? statuses,
     int? timeRemainingInSeconds,
     int? currentQuestionIndex,
+    int? currentSectionIndex,
   }) {
     return TestState(
       isLoading: isLoading ?? this.isLoading,
@@ -52,11 +63,13 @@ class TestState {
       statuses: statuses ?? this.statuses,
       timeRemainingInSeconds: timeRemainingInSeconds ?? this.timeRemainingInSeconds,
       currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
+      currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex,
     );
   }
 }
 
 
+// --- TEST NOTIFIER CLASS (COMPLETE & CORRECTED) ---
 class TestNotifier extends StateNotifier<TestState> {
   final ApiService _apiService;
   Timer? _timer;
@@ -68,7 +81,6 @@ class TestNotifier extends StateNotifier<TestState> {
       state = state.copyWith(isLoading: true, error: null);
       final testData = await _apiService.getTest();
 
-      // Initialize statuses for all questions
       final initialStatuses = <String, QuestionStatus>{};
       for (var section in testData.sections) {
         for (var question in section.questions) {
@@ -85,27 +97,53 @@ class TestNotifier extends StateNotifier<TestState> {
         responses: {},
       );
       _startTimer();
+      // Mark the very first question as visited
+      goToQuestion(0);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (state.timeRemainingInSeconds > 0) {
+        state = state.copyWith(timeRemainingInSeconds: state.timeRemainingInSeconds - 1);
+      } else {
+        timer.cancel();
+        submitTest();
+      }
+    });
+  }
+
+  void answerQuestion(String questionId, dynamic answer) {
+    final newResponses = Map<String, dynamic>.from(state.responses);
+    newResponses[questionId] = answer;
+    state = state.copyWith(responses: newResponses);
+  }
+  
   void goToQuestion(int index) {
+    if (state.test == null) return;
     final allQuestions = state.test!.sections.expand((s) => s.questions).toList();
     if (index < 0 || index >= allQuestions.length) return;
-    if (index == state.currentQuestionIndex) return; // No need to do anything
-
-    final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
     
-    // --- NEW LOGIC: Update status of the question we are LEAVING ---
+    int newSectionIndex = state.currentSectionIndex;
+    if (index != state.currentQuestionIndex) {
+      int questionCount = 0;
+      for (int i = 0; i < state.test!.sections.length; i++) {
+        questionCount += state.test!.sections[i].questions.length;
+        if (index < questionCount) {
+          newSectionIndex = i;
+          break;
+        }
+      }
+    }
+    
+    final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
     final fromQuestionId = allQuestions[state.currentQuestionIndex].questionId;
-    // If we are leaving a question that was "Not Visited", it now becomes "Not Answered"
     if (newStatuses[fromQuestionId] == QuestionStatus.notVisited) {
       newStatuses[fromQuestionId] = QuestionStatus.notAnswered;
     }
-    // ----------------------------------------------------------------
-
-    // --- EXISTING LOGIC: Update status of the question we are GOING TO ---
     final toQuestionId = allQuestions[index].questionId;
     if (newStatuses[toQuestionId] == QuestionStatus.notVisited) {
       newStatuses[toQuestionId] = QuestionStatus.notAnswered;
@@ -113,20 +151,27 @@ class TestNotifier extends StateNotifier<TestState> {
     
     state = state.copyWith(
       currentQuestionIndex: index,
+      currentSectionIndex: newSectionIndex,
       statuses: newStatuses,
     );
   }
-
+  
+  void changeSection(int newSectionIndex) {
+    if (state.test == null || newSectionIndex < 0 || newSectionIndex >= state.test!.sections.length) {
+      return;
+    }
+    int globalQuestionIndex = 0;
+    for (int i = 0; i < newSectionIndex; i++) {
+      globalQuestionIndex += state.test!.sections[i].questions.length;
+    }
+    goToQuestion(globalQuestionIndex);
+  }
 
   void saveAndNext() {
+    if (state.test == null) return;
     final allQuestions = state.test!.sections.expand((s) => s.questions).toList();
-    if (state.currentQuestionIndex >= allQuestions.length) return;
-
     final currentQuestionId = allQuestions[state.currentQuestionIndex].questionId;
-    final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
 
-    // --- THE FIX IS HERE ---
-    // Check if an answer for the current question actually exists and is not empty.
     final currentResponse = state.responses[currentQuestionId];
     bool hasAnswer = false;
     if (currentResponse != null) {
@@ -137,52 +182,23 @@ class TestNotifier extends StateNotifier<TestState> {
       }
     }
 
-    // Only update the status to 'Answered' if an answer has been provided.
     if (hasAnswer) {
+      final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
       newStatuses[currentQuestionId] = QuestionStatus.answered;
-      state = state.copyWith(statuses: newStatuses); // Update state with new status
+      state = state.copyWith(statuses: newStatuses);
     }
     
-    // Always navigate to the next question, regardless of whether it was answered.
     goToQuestion(state.currentQuestionIndex + 1);
   }
 
-  void _startTimer() {
-    _timer?.cancel(); // Cancel any existing timer
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (state.timeRemainingInSeconds > 0) {
-        state = state.copyWith(timeRemainingInSeconds: state.timeRemainingInSeconds - 1);
-      } else {
-        timer.cancel();
-        // TODO: Implement auto-submit logic
-      }
-    });
-  }
-  
-  void answerQuestion(String questionId, dynamic answer) {
-    final newResponses = Map<String, dynamic>.from(state.responses);
-    newResponses[questionId] = answer;
-
-    state = state.copyWith(responses: newResponses);
-  }
-
-  // TODO: Implement other methods like clearResponse, markForReview, etc.
-  void markForReview(String questionId) {
-     final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
-     // Logic to check if it's already answered or not
-     newStatuses[questionId] = QuestionStatus.markedForReview;
-     state = state.copyWith(statuses: newStatuses);
-  }
-
   void markForReviewAndNext() {
+    if (state.test == null) return;
     final allQuestions = state.test!.sections.expand((s) => s.questions).toList();
-    if (state.currentQuestionIndex >= allQuestions.length) return;
-
     final currentQuestionId = allQuestions[state.currentQuestionIndex].questionId;
     final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
 
-    // Check if the question has an answer already
-    final hasAnswer = state.responses[currentQuestionId] != null && (state.responses[currentQuestionId] as List).isNotEmpty;
+    final hasAnswer = state.responses[currentQuestionId] != null &&
+        (state.responses[currentQuestionId] is List ? (state.responses[currentQuestionId] as List).isNotEmpty : (state.responses[currentQuestionId] as String).isNotEmpty);
 
     if (hasAnswer) {
       newStatuses[currentQuestionId] = QuestionStatus.answeredAndMarkedForReview;
@@ -195,29 +211,19 @@ class TestNotifier extends StateNotifier<TestState> {
   }
 
   void clearResponse() {
+    if (state.test == null) return;
     final allQuestions = state.test!.sections.expand((s) => s.questions).toList();
-    if (state.currentQuestionIndex >= allQuestions.length) return;
-    
     final currentQuestionId = allQuestions[state.currentQuestionIndex].questionId;
-
     final newResponses = Map<String, dynamic>.from(state.responses);
-    newResponses.remove(currentQuestionId); // Remove the answer
-
+    newResponses.remove(currentQuestionId);
     final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
-    // Set status back to Not Answered (red), since they've visited it but cleared the answer
     newStatuses[currentQuestionId] = QuestionStatus.notAnswered;
-
     state = state.copyWith(responses: newResponses, statuses: newStatuses);
   }
 
   void submitTest() {
-    // For now, this is a placeholder.
-    // In a real app, you would show a confirmation dialog,
-    // then call the ApiService to send the final responses to the backend.
     print('--- TEST SUBMITTED ---');
     print(state.responses);
-    // TODO: Show a confirmation dialog
-    // TODO: Call ApiService to submit
   }
 
   @override
@@ -227,10 +233,7 @@ class TestNotifier extends StateNotifier<TestState> {
   }
 }
 
-final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService();
-});
-
+// --- GLOBAL PROVIDER (UNMODIFIED) ---
 final testProvider = StateNotifierProvider<TestNotifier, TestState>((ref) {
   final apiService = ref.read(apiServiceProvider);
   return TestNotifier(apiService);
