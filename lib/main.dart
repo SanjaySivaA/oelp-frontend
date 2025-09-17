@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'screens/welcome_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/selection_screen.dart';
@@ -19,10 +20,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Auth Page',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(
+      primaryColor: const Color(0xFF299FE8),
+      fontFamily: "Inter",
+    ),
 
-      initialRoute: '/test',
+      initialRoute: '/',
       routes: {
+        '/': (context) =>  const LandingPage(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/selection': (context) => const SelectionScreen(),
