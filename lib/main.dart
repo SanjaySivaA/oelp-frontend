@@ -9,6 +9,7 @@ import 'screens/selection_screen.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/test_screen/test_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'screens/selection_screen_v2.dart';
 
 void main() async {
   // This ensures our app is initialized correctly before we run it
@@ -30,6 +31,10 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // --- 1. CRITICAL FIX: Use ref.watch to make the router reactive ---
+    final authState = ref.watch(authProvider);
+    const String startRoute = String.fromEnvironment('START_ROUTE', defaultValue: '/');
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'MockTest Platform',
@@ -37,32 +42,24 @@ class MyApp extends ConsumerWidget {
         primarySwatch: Colors.blue,
         fontFamily: 'Inter',
       ),
-      initialRoute: '/',
-      
-      // onGenerateRoute is our new, smart router and route guard
+      initialRoute: startRoute,
       onGenerateRoute: (settings) {
-        // We read the latest auth state here
-        final authState = ref.read(authProvider);
-
-        // Define which routes require the user to be logged in
+        // Define protected routes (add the new screen here too)
         final protectedRoutes = ['/selection', '/test', '/analytics'];
         final isProtectedRoute = protectedRoutes.contains(settings.name);
 
-        // --- THE ROUTE GUARD LOGIC ---
-        // If the user is not authenticated and tries to access a protected route...
+        // If not authenticated and trying to access a protected route, redirect to login
         if (authState.status != AuthStatus.authenticated && isProtectedRoute) {
-          // ...redirect them to the landing page.
-          return MaterialPageRoute(builder: (context) => const LandingPage());
+          return MaterialPageRoute(builder: (context) => const LoginScreen());
         }
 
-        // If the user IS authenticated and tries to go to login/register...
+        // If authenticated and trying to access a public-only route, redirect to the main selection screen
         if (authState.status == AuthStatus.authenticated && (settings.name == '/login' || settings.name == '/register' || settings.name == '/')) {
-           // ...redirect them to the selection screen.
-          return MaterialPageRoute(builder: (context) => const SelectionScreen());
+           // --- 2. IMPROVEMENT: Make the new screen the default for logged-in users ---
+          return MaterialPageRoute(builder: (context) => const TestSelectionScreen());
         }
 
-        // --- THE ROUTER LOGIC ---
-        // If the guard checks pass, build the correct page.
+        // If guard checks pass, build the correct page
         switch (settings.name) {
           case '/':
             return MaterialPageRoute(builder: (context) => const LandingPage());
@@ -70,14 +67,18 @@ class MyApp extends ConsumerWidget {
             return MaterialPageRoute(builder: (context) => const LoginScreen());
           case '/register':
             return MaterialPageRoute(builder: (context) => const RegisterScreen());
-          case '/selection':
+          case '/selection': // The old, simple selection screen
             return MaterialPageRoute(builder: (context) => const SelectionScreen());
+          
+          // --- 3. ADDED: The route for your new, animated selection screen ---
+          case '/selection_v2':
+            return MaterialPageRoute(builder: (context) => const TestSelectionScreen());
+
           case '/analytics':
             return MaterialPageRoute(builder: (context) => AnalyticsScreen());
           case '/test':
             return MaterialPageRoute(builder: (context) => const TestScreen());
           default:
-            // Optional: A 404 page
             return MaterialPageRoute(builder: (context) => const Scaffold(body: Center(child: Text('Page not found'))));
         }
       },

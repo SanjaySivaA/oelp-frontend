@@ -81,7 +81,7 @@ flutter:
   # --- NEW ASSETS SECTION ---
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/images/
+    # - assets/images/
     - assets/fonts/inter/ # Also good practice to declare the font folder itself
   # -------------------------
 
