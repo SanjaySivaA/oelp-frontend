@@ -16,7 +16,7 @@ void main() async {
   
   // This container allows us to check auth state before the app UI runs
   final container = ProviderContainer();
-  await container.read(authProvider.notifier).checkInitialAuth();
+  await container.read(authNotifierProvider.notifier).checkInitialAuth();
 
   runApp(UncontrolledProviderScope(
     container: container,

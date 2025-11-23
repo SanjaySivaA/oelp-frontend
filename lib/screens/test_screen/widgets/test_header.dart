@@ -18,7 +18,10 @@ class TestHeader extends ConsumerWidget implements PreferredSizeWidget {
       return AppBar(title: const Text('Loading...'));
     }
 
+    final allQuestions = test.sections.expand((s) => s.questions).toList();
+    final currentQuestion = allQuestions[testState.currentQuestionIndex];
     final currentSection = test.sections[testState.currentSectionIndex];
+
     final timeRemaining = testState.timeRemainingInSeconds;
     final duration = Duration(seconds: timeRemaining);
     final timeString = '${duration.inHours.toString().padLeft(2, '0')}:${(duration.inMinutes % 60).toString().padLeft(2, '0')}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -54,14 +57,14 @@ class TestHeader extends ConsumerWidget implements PreferredSizeWidget {
         child: Column(
           children: [
             _buildSectionNavBar(context, ref, test, testState.currentSectionIndex),
-            _buildQuestionDetailsBar(context, currentSection),
+            _buildQuestionDetailsBar(context, currentSection, currentQuestion),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildQuestionDetailsBar(BuildContext context, Section currentSection) {
+  Widget _buildQuestionDetailsBar(BuildContext context, Section currentSection, Question currentQuestion) {
     const double panelWidth = 275;
     return AnimatedPadding(
       duration: const Duration(milliseconds: 300),
@@ -95,7 +98,7 @@ class TestHeader extends ConsumerWidget implements PreferredSizeWidget {
                   const TextSpan(text: 'Marks: '),
                   // A separate TextSpan for the positive marks with a green color
                   TextSpan(
-                    text: '+${currentSection.positiveMarks}',
+                    text: '+${currentQuestion.positiveMarks}',
                     style: const TextStyle(
                       color: Color(0xFF16A34A), // Green
                       fontWeight: FontWeight.normal,
@@ -104,7 +107,7 @@ class TestHeader extends ConsumerWidget implements PreferredSizeWidget {
                   const TextSpan(text: ' | Negative Marks: '),
                   // A separate TextSpan for the negative marks with a red color
                   TextSpan(
-                    text: '${currentSection.negativeMarks}',
+                    text: '${currentQuestion.negativeMarks}',
                     style: const TextStyle(
                       color: Color(0xFFEF5350), // Red
                       fontWeight: FontWeight.normal,

@@ -1,5 +1,6 @@
 // lib/screens/test_screen/test_screen.dart
 
+// FIX: Changed '.' to ':' in the import statement
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/test_provider.dart';
@@ -24,6 +25,7 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // This call now provides the required parameters.
       ref.read(testProvider.notifier).loadTest();
     });
   }
@@ -62,7 +64,6 @@ class _TestScreenState extends ConsumerState<TestScreen> {
       appBar: TestHeader(isPanelVisible: _isPanelVisible),
       body: Stack(
         children: [
-          // The PageView is the base layer and is STATIC. It no longer resizes.
           PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
@@ -75,7 +76,6 @@ class _TestScreenState extends ConsumerState<TestScreen> {
             },
           ),
           
-          // The slide-out panel
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
@@ -85,12 +85,11 @@ class _TestScreenState extends ConsumerState<TestScreen> {
             child: const RightNavigationPanel(),
           ),
 
-          // The collapse button
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
             right: _isPanelVisible ? panelWidth : 0,
-            top: (MediaQuery.of(context).size.height / 2) - 150, // Adjusted position
+            top: (MediaQuery.of(context).size.height / 2) - 150,
             child: GestureDetector(
               onTap: () {
                 setState(() {

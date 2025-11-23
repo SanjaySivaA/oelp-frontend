@@ -1,3 +1,5 @@
+// lib/services/api_service.dart
+
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -28,25 +30,20 @@ class ApiService {
     if (response.statusCode == 200) {
       return RegisterResponse.fromJson(jsonDecode(response.body));
     } else {
-      // Handle errors, e.g., email already registered
       final errorData = jsonDecode(response.body);
       throw Exception(errorData['detail'] ?? 'Failed to register');
     }
   }
 
-  // --- 3. ADD THE NEW loginUser METHOD ---
   Future<Token> loginUser({
     required String email,
     required String password,
   }) async {
-    // IMPORTANT: Your backend's /login endpoint expects 'x-www-form-urlencoded' data,
-    // not JSON. The http package handles this automatically when you pass a Map<String, String>
-    // as the body without jsonEncode.
     final response = await http.post(
       Uri.parse('$_baseUrl/login'),
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {
-        'username': email, // The backend expects 'username' for the email
+        'username': email,
         'password': password,
       },
     );
@@ -54,7 +51,6 @@ class ApiService {
     if (response.statusCode == 200) {
       return Token.fromJson(jsonDecode(response.body));
     } else {
-      // Handle errors, e.g., incorrect email or password
       final errorData = jsonDecode(response.body);
       throw Exception(errorData['detail'] ?? 'Failed to login');
     }
@@ -63,7 +59,6 @@ class ApiService {
   Future<User> getMe(String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/users/me'),
-      // Send the token in the authorization header
       headers: {
         'Authorization': 'Bearer $token',
       },
@@ -76,34 +71,63 @@ class ApiService {
     }
   }
 
+  Future<Test> getTest(String authToken) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/getTest'),
+      headers: {
+        'Authorization': 'Bearer $authToken',
+      },
+    );
 
-  Future<Test> getTest() async {
-    try {
-      // 1. Make a GET request to your FastAPI backend endpoint
-      final response = await http.get(Uri.parse('$_baseUrl/getTest'));
-
-      // 2. Check if the request was successful
-      if (response.statusCode == 200) {
-        // 3. Decode the JSON string and parse it using your Test model
-        return Test.fromJson(jsonDecode(response.body));
-      } else {
-        // Handle server errors (e.g., 404 Not Found, 500 Internal Server Error)
-        throw Exception('Failed to load test. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      // 4. Handle network or other exceptions
-      throw Exception('Failed to connect to the server: $e');
+    if (response.statusCode == 200) {
+      return Test.fromJson(json.decode(response.body));
+    } else {
+      throw Exception('Failed to load test from JSON: ${response.body}');
     }
   }
 
-  // TODO: Implement save progress method
-  Future<void> saveProgress(String sessionId, Map<String, dynamic> responses) async {
-    // This will send the data to POST /api/sessions/{sessionId}/progress
-  }
+  Future<Map<String, dynamic>> submitTest({
+    required String authToken,
+    required Test test, // We get the testId from here
+    required Map<String, dynamic> responses,
+  }) async {
+    final List<Map<String, dynamic>> formattedAnswers = [];
+    final allQuestions = test.sections.expand((s) => s.questions).toList();
 
-  // TODO: Implement submit test method
-  Future<void> submitTest(String sessionId, Map<String, dynamic> responses) async {
-    // This will send the data to POST /api/sessions/{sessionId}/submit
+    for (var question in allQuestions) {
+      final dynamic responseForQuestion = responses[question.questionId];
+      List<String> selectedOptionIds = [];
+      
+      if (responseForQuestion is List<String>) {
+        selectedOptionIds = responseForQuestion;
+      }
+      
+      formattedAnswers.add({
+        'questionId': question.questionId,
+        'selectedOptionIds': selectedOptionIds,
+      });
+    }
+    
+    final submissionPayload = {
+      'sessionId': test.sessionId,
+      'answers': formattedAnswers,
+    };
+    
+    // THE FIX: The URL now correctly includes the testId from the Test object
+    final response = await http.post(
+      Uri.parse('$_baseUrl/tests/${test.testId}/submit'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: jsonEncode(submissionPayload),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to submit test. Status: ${response.statusCode}, Body: ${response.body}');
+    }
   }
 }
 

@@ -3,7 +3,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/auth_models.dart';
 import '../services/api_service.dart';
 
-// 1. Define the different states our authentication can be in
 enum AuthStatus {
   unknown,
   authenticated,
@@ -11,7 +10,6 @@ enum AuthStatus {
   loading,
 }
 
-// 2. Define the state object
 class AuthState {
   final AuthStatus status;
   final User? user;
@@ -40,12 +38,12 @@ class AuthState {
   }
 }
 
-// 3. The Notifier class with all the logic
 class AuthNotifier extends StateNotifier<AuthState> {
   final ApiService _apiService;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   AuthNotifier(this._apiService) : super(AuthState()) {
+    // Note: checkInitialAuth is likely called from your app's entry point (e.g., main.dart)
   }
 
   Future<void> checkInitialAuth() async {
@@ -55,7 +53,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final user = await _apiService.getMe(token);
         state = state.copyWith(status: AuthStatus.authenticated, user: user, token: token);
       } catch (e) {
-        // Token is invalid or expired, log them out
         await logout();
       }
     } else {
@@ -67,8 +64,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       state = state.copyWith(status: AuthStatus.loading, error: null);
       final tokenData = await _apiService.loginUser(email: email, password: password);
-      
-      // After getting token, fetch user details
       final user = await _apiService.getMe(tokenData.accessToken);
 
       await _storage.write(key: 'auth_token', value: tokenData.accessToken);
@@ -95,8 +90,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-// 4. The global provider that the UI will interact with
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  // It depends on the ApiService to do its job
+// MODIFIED: Renamed to authNotifierProvider. This is for triggering actions (login, logout, etc.).
+final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref.read(apiServiceProvider));
+});
+
+// NEW: This provider gives simple, read-only access to the AuthState object.
+// Other providers will use this to get the current token or user data.
+final authProvider = Provider<AuthState>((ref) {
+  return ref.watch(authNotifierProvider);
 });

@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/test_provider.dart';
-import '../../../widgets/custom_action_button.dart'; // <-- Make sure this import is correct
+import '../../../widgets/custom_action_button.dart'; // Your custom button import
 
 class BottomActionButtons extends ConsumerWidget {
   const BottomActionButtons({super.key});
@@ -19,7 +19,6 @@ class BottomActionButtons extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Use the secondary style for these buttons
           CustomActionButton(
             text: 'Mark for Review & Next',
             type: ButtonType.secondary,
@@ -36,9 +35,8 @@ class BottomActionButtons extends ConsumerWidget {
             },
           ),
 
-          const Spacer(), // Spacer pushes the next items to the right end
+          const Spacer(),
 
-          // Use the primary style for these buttons
           CustomActionButton(
             text: 'Save & Next',
             type: ButtonType.primary,
@@ -47,12 +45,44 @@ class BottomActionButtons extends ConsumerWidget {
             },
           ),
           const SizedBox(width: 16),
+
+          // =======================================================================
+          // MODIFIED SUBMIT BUTTON LOGIC
+          // =======================================================================
           CustomActionButton(
             text: 'Submit',
             type: ButtonType.primary,
             onPressed: () {
-              ref.read(testProvider.notifier).submitTest();
-              Navigator.pushReplacementNamed(context, '/analytics');
+              // 1. Show a confirmation dialog to prevent accidental submission.
+              showDialog(
+                context: context,
+                builder: (BuildContext dialogContext) => AlertDialog(
+                  title: const Text('Submit Test'),
+                  content: const Text('Are you sure you want to end the test? This action cannot be undone.'),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(), // Just close the dialog
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      // 2. Make the callback async to await the submission.
+                      onPressed: () async { 
+                        Navigator.of(dialogContext).pop(); // Close the dialog first
+
+                        // 3. Await the submission. The app will wait here until the backend responds.
+                        await ref.read(testProvider.notifier).submitTest();
+
+                        // 4. Best practice: Check if the widget is still mounted before navigating.
+                        if (context.mounted) {
+                          // 5. Navigate to the analytics screen AFTER submission is complete.
+                          Navigator.pushReplacementNamed(context, '/analytics');
+                        }
+                      },
+                      child: const Text('Submit'),
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         ],

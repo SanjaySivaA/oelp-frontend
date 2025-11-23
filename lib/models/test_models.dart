@@ -32,26 +32,28 @@ class Section {
   final String sectionId;
   final String sectionName;
   final String questionType;
-  final int positiveMarks;
-  final int negativeMarks;
+  //final int positiveMarks;
+  //final int negativeMarks;
   final List<Question> questions;
 
   Section({
     required this.sectionId,
     required this.sectionName,
     required this.questionType,
-    required this.positiveMarks,
-    required this.negativeMarks,
+    //required this.positiveMarks,
+    //required this.negativeMarks,
     required this.questions,
   });
 
   factory Section.fromJson(Map<String, dynamic> json) {
+    var questionsList = json['questions'] as List;
+    List<Question> parsedQuestions = questionsList.map((i) => Question.fromJson(i)).toList();
     return Section(
       sectionId: json['sectionId'] ?? '',
       sectionName: json['sectionName'] ?? '',
-      questionType: json['type'] ?? 'UNKNOWN',
-      positiveMarks: json['positiveMarks'] ?? 0,
-      negativeMarks: json['negativeMarks'] ?? 0,
+      questionType: json['questionType'] ?? 'UNKNOWN',
+      // positiveMarks: json['positiveMarks'] ?? 0,
+      // negativeMarks: json['negativeMarks'] ?? 0,
       questions: (json['questions'] as List? ?? [])
           .map((qJson) => Question.fromJson(qJson))
           .toList(),
@@ -64,12 +66,16 @@ class Question {
   final String questionText;
   final String? questionImageUrl;
   final List<Option> options;
+  final int positiveMarks;
+  final int negativeMarks;
 
   Question({
     required this.questionId,
     required this.questionText,
     this.questionImageUrl,
     required this.options,
+    required this.positiveMarks,
+    required this.negativeMarks,
   });
 
   factory Question.fromJson(Map<String, dynamic> json) {
@@ -81,6 +87,8 @@ class Question {
       options: (json['options'] as List? ?? [])
           .map((optJson) => Option.fromJson(optJson))
           .toList(),
+      positiveMarks: json['positiveMarks'] ?? 0,
+      negativeMarks: json['negativeMarks'] ?? 0,
     );
   }
 }

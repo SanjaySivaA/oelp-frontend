@@ -4,8 +4,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/test_models.dart';
 import '../services/api_service.dart';
+import 'auth_provider.dart';
 
-// --- ENUM FOR QUESTION STATUS ---
 enum QuestionStatus {
   notVisited,
   notAnswered,
@@ -14,7 +14,6 @@ enum QuestionStatus {
   answeredAndMarkedForReview,
 }
 
-// --- TEST STATE CLASS (WITH MISSING PROPERTIES ADDED) ---
 class TestState {
   final bool isLoading;
   final Test? test;
@@ -23,7 +22,7 @@ class TestState {
   final Map<String, QuestionStatus> statuses;
   final int timeRemainingInSeconds;
   final int currentQuestionIndex;
-  final int currentSectionIndex; // <-- ADDED THIS
+  final int currentSectionIndex;
 
   TestState({
     this.isLoading = true,
@@ -33,7 +32,7 @@ class TestState {
     this.statuses = const {},
     this.timeRemainingInSeconds = 0,
     this.currentQuestionIndex = 0,
-    this.currentSectionIndex = 0, // <-- ADDED THIS
+    this.currentSectionIndex = 0,
   });
 
   TestState copyWith({
@@ -44,7 +43,7 @@ class TestState {
     Map<String, QuestionStatus>? statuses,
     int? timeRemainingInSeconds,
     int? currentQuestionIndex,
-    int? currentSectionIndex, // <-- ADDED THIS
+    int? currentSectionIndex,
   }) {
     return TestState(
       isLoading: isLoading ?? this.isLoading,
@@ -54,39 +53,51 @@ class TestState {
       statuses: statuses ?? this.statuses,
       timeRemainingInSeconds: timeRemainingInSeconds ?? this.timeRemainingInSeconds,
       currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
-      currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex, // <-- ADDED THIS
+      currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex,
     );
   }
 }
 
-// --- TEST NOTIFIER CLASS (WITH MISSING METHODS ADDED) ---
 class TestNotifier extends StateNotifier<TestState> {
   final ApiService _apiService;
+  final Ref _ref;
   Timer? _timer;
 
-  TestNotifier(this._apiService) : super(TestState()) {
-    loadTest();
-  }
+  TestNotifier(this._apiService, this._ref) : super(TestState());
 
+  // REVERTED: This is the simple loadTest method without parameters.
   Future<void> loadTest() async {
     try {
       state = state.copyWith(isLoading: true, error: null);
-      final testData = await _apiService.getTest();
+
+      final authToken = _ref.read(authProvider).token;
+      if (authToken == null) {
+        throw Exception('User is not authenticated.');
+      }
+
+      // Call the simpler getTest method
+      final testData = await _apiService.getTest(authToken);
+
       final initialStatuses = <String, QuestionStatus>{};
-      for (var section in testData.sections) {
-        for (var question in section.questions) {
-          initialStatuses[question.questionId] = QuestionStatus.notVisited;
-        }
+      final allQuestions = testData.sections.expand((s) => s.questions).toList();
+      for (var question in allQuestions) {
+        initialStatuses[question.questionId] = QuestionStatus.notVisited;
       }
-      if (testData.sections.isNotEmpty && testData.sections.first.questions.isNotEmpty) {
-        initialStatuses[testData.sections.first.questions.first.questionId] = QuestionStatus.notAnswered;
+      if (allQuestions.isNotEmpty) {
+        initialStatuses[allQuestions.first.questionId] = QuestionStatus.notAnswered;
       }
+
+      // FIX for type error is included here
+      final Map<String, dynamic> initialResponses = { for (var q in allQuestions) q.questionId: null };
+
       state = state.copyWith(
         isLoading: false,
         test: testData,
         timeRemainingInSeconds: testData.durationInSeconds,
         statuses: initialStatuses,
-        responses: {},
+        responses: initialResponses,
+        currentQuestionIndex: 0,
+        currentSectionIndex: 0,
       );
       _startTimer();
     } catch (e) {
@@ -137,15 +148,14 @@ class TestNotifier extends StateNotifier<TestState> {
     if (newStatuses[questionId] == QuestionStatus.notVisited) {
       newStatuses[questionId] = QuestionStatus.notAnswered;
     }
-    
+
     state = state.copyWith(
-        currentQuestionIndex: index, 
-        currentSectionIndex: newSectionIndex, // Also update the section index
+        currentQuestionIndex: index,
+        currentSectionIndex: newSectionIndex,
         statuses: newStatuses
     );
   }
 
-  // --- ADDED THIS METHOD ---
   void changeSection(int newSectionIndex) {
     if (state.test == null || newSectionIndex < 0 || newSectionIndex >= state.test!.sections.length) {
       return;
@@ -165,7 +175,6 @@ class TestNotifier extends StateNotifier<TestState> {
     }
   }
 
-  // --- ADDED THIS METHOD ---
   void markForReviewAndNext() {
     if (state.test == null) return;
     final allQuestions = state.test!.sections.expand((s) => s.questions).toList();
@@ -180,7 +189,6 @@ class TestNotifier extends StateNotifier<TestState> {
     }
 
     state = state.copyWith(statuses: newStatuses);
-    // Move to next question after marking for review
     saveAndNext();
   }
 
@@ -188,7 +196,7 @@ class TestNotifier extends StateNotifier<TestState> {
     if (state.test == null) return;
     final allQuestions = state.test!.sections.expand((s) => s.questions).toList();
     final currentQuestionId = allQuestions[state.currentQuestionIndex].questionId;
-    
+
     final newResponses = Map<String, dynamic>.from(state.responses);
     newResponses.remove(currentQuestionId);
     final newStatuses = Map<String, QuestionStatus>.from(state.statuses);
@@ -196,10 +204,34 @@ class TestNotifier extends StateNotifier<TestState> {
     state = state.copyWith(responses: newResponses, statuses: newStatuses);
   }
 
-  void submitTest() {
+ Future<void> submitTest() async {
     _timer?.cancel();
-    print('--- TEST SUBMITTED ---');
-    print('Final Responses: ${state.responses}');
+    if (state.test == null) return;
+
+    try {
+      final authToken = _ref.read(authProvider).token;
+      if (authToken == null) {
+        throw Exception("User not authenticated.");
+      }
+
+      print('--- SUBMITTING TEST ---');
+      print('Final Responses: ${state.responses}');
+
+      await _apiService.submitTest(
+        authToken: authToken,
+        test: state.test!,
+        responses: state.responses,
+      );
+
+      print('--- SUBMISSION SUCCESSFUL ---');
+      // Here you could update the state to show a "Submitted!" message
+      // or navigate the user away.
+
+    } catch (e) {
+      print('--- SUBMISSION FAILED ---');
+      print(e.toString());
+      // Optionally, update the state to show an error message to the user
+    }
   }
 
   @override
@@ -209,12 +241,7 @@ class TestNotifier extends StateNotifier<TestState> {
   }
 }
 
-// --- RIVERPOD PROVIDERS (UNMODIFIED) ---
-final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService();
-});
-
 final testProvider = StateNotifierProvider<TestNotifier, TestState>((ref) {
   final apiService = ref.read(apiServiceProvider);
-  return TestNotifier(apiService);
+  return TestNotifier(apiService, ref);
 });

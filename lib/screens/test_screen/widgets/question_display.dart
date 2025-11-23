@@ -59,6 +59,7 @@ class _QuestionDisplayState extends ConsumerState<QuestionDisplay> {
     final testState = ref.watch(testProvider);
     final currentResponse = testState.responses[widget.question.questionId];
     final section = testState.test!.sections[testState.currentSectionIndex];
+    print("DEBUG: Received questionType ->'${section.questionType}'<-");
 
     switch (section.questionType) {
       case "MCSC":
