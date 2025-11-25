@@ -1,5 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../widgets/custom_navbar.dart'; // Ensure this path is correct
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../widgets/custom_navbar.dart';
+
+// --- Configuration ---
+// Fetches from --dart-define=API_URL=... or defaults to localhost
+const String kBackendUrl = String.fromEnvironment(
+  'API_BASE_URL', 
+  defaultValue: 'http://127.0.0.1:8000'
+);
 
 // --- Theme Colors ---
 const Color kPrimaryColor = Color(0xFF299FE8);
@@ -8,7 +18,7 @@ const Color kLighterSecondaryColor = Color(0xFF58B6F2);
 const Color kBackgroundColor = Color(0xFFF8F9FA);
 const Color kTextColor = Color(0xFF1A202C);
 
-// --- Data Model (Mock) ---
+// --- Data Model ---
 class TestModel {
   final String id;
   final String title;
@@ -21,6 +31,16 @@ class TestModel {
     required this.questionCount,
     required this.durationMins,
   });
+
+  // Factory to parse JSON from Backend
+  factory TestModel.fromJson(Map<String, dynamic> json) {
+    return TestModel(
+      id: json['template_id'] ?? json['test_id'] ?? "",
+      title: json['template_name'] ?? json['test_name'] ?? "Unknown Test",
+      questionCount: json['question_count'] ?? 25,
+      durationMins: json['duration_minutes'] ?? 60,
+    );
+  }
 }
 
 class TestSelectionScreen extends StatefulWidget {
@@ -35,33 +55,24 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
   String? selectedType;
   String? selectedSubject;
 
-  // Loading state for the "API call"
+  // Loading state
   bool isLoading = false;
   List<TestModel> displayedTests = [];
 
   final types = ["Chapterwise", "Subjectwise", "Full Syllabus", "For You"];
   final subjects = ["Physics", "Chemistry", "Mathematics"];
 
-  // Hardcoded Data Repository
+  // --- HARDCODED FALLBACK DATA ---
   final Map<String, List<String>> _repoChapterwise = {
     "Physics": [
-      "Mechanics",
-      "Thermodynamics",
-      "Waves and Sound",
-      "Electricity and Magnetism",
-      "Optics",
-      "Modern Physics"
+      "Mechanics", "Thermodynamics", "Waves and Sound", 
+      "Electricity and Magnetism", "Optics", "Modern Physics"
     ],
     "Chemistry": [
-      "Physical Chemistry",
-      "Organic Chemistry",
-      "Inorganic Chemistry"
+      "Physical Chemistry", "Organic Chemistry", "Inorganic Chemistry"
     ],
     "Mathematics": [
-      "Algebra",
-      "Calculus",
-      "Coordinate Geometry",
-      "Trigonometry"
+      "Algebra", "Calculus", "Coordinate Geometry", "Trigonometry"
     ],
   };
 
@@ -73,6 +84,8 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
   ];
 
   late final AnimationController _controller;
+  // Secure storage to get token for "For You" endpoint
+  final _storage = const FlutterSecureStorage(); 
 
   @override
   void initState() {
@@ -89,7 +102,6 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
     super.dispose();
   }
 
-  /// Helper to get Exam Name from ID
   String _getExamName(int id) {
     switch (id) {
       case 1: return "JEE Main";
@@ -99,35 +111,84 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
     }
   }
 
-  /// Simulates fetching data
-  Future<void> _fetchTests({required String type, String? subject}) async {
+  /// HYBRID FETCH: Tries Backend -> Falls back to Local Repo
+  Future<void> _fetchTests({required String type, String? subject, required int examId}) async {
     setState(() {
       isLoading = true;
       displayedTests = [];
     });
 
-    // Simulate Network Delay
-    await Future.delayed(const Duration(milliseconds: 600));
-
     List<TestModel> results = [];
+    bool backendSuccess = false;
 
-    if (type == "Full Syllabus" || type == "For You") {
-      results = _repoFullSyllabus
-          .map((name) => TestModel(
-              id: "test_${name.hashCode}",
-              title: name,
-              questionCount: 75,
-              durationMins: 180))
-          .toList();
-    } else if (subject != null) {
-      final rawNames = _repoChapterwise[subject] ?? [];
-      results = rawNames
-          .map((name) => TestModel(
-              id: "test_${name.hashCode}",
-              title: name,
-              questionCount: 25,
-              durationMins: 60))
-          .toList();
+    // 1. ATTEMPT BACKEND FETCH
+    try {
+      String endpoint;
+      Map<String, String> queryParams = {
+        'exam_id': examId.toString(),
+      };
+
+      // --- SWITCH LOGIC: Dynamic vs Static ---
+      if (type == "For You") {
+        // 1. Dynamic / Personal Route
+        endpoint = "/tests/recommendations";
+        // The backend uses the Bearer token to know WHO the user is
+      } else {
+        // 2. Static / Public Route
+        endpoint = "/tests/templates";
+        queryParams['type'] = type.toUpperCase().replaceAll(" ", "_");
+        if (subject != null) {
+          queryParams['subject'] = subject;
+        }
+      }
+
+      // Construct URL
+      final uri = Uri.parse("$kBackendUrl$endpoint").replace(queryParameters: queryParams);
+      
+      // Prepare Headers (Auth Token is needed for 'For You')
+      String? token = await _storage.read(key: 'auth_token');
+      Map<String, String> headers = {
+        "Content-Type": "application/json",
+        if (token != null) "Authorization": "Bearer $token",
+      };
+
+      print("📡 Fetching: $uri");
+      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 3));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        results = data.map((json) => TestModel.fromJson(json)).toList();
+        backendSuccess = true;
+        print("✅ Backend success: Loaded ${results.length} tests from $endpoint");
+      } else {
+        print("⚠️ Backend Error: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("⚠️ Connection Failed (Using Fallback): $e");
+    }
+
+    // 2. FALLBACK LOGIC (If backend failed or returned empty list)
+    if (!backendSuccess || results.isEmpty) {
+      await Future.delayed(const Duration(milliseconds: 400)); // Fake delay for UX
+      
+      if (type == "Full Syllabus" || type == "For You") {
+        results = _repoFullSyllabus
+            .map((name) => TestModel(
+                id: "fallback_${name.hashCode}",
+                title: name,
+                questionCount: 75,
+                durationMins: 180))
+            .toList();
+      } else if (subject != null) {
+        final rawNames = _repoChapterwise[subject] ?? [];
+        results = rawNames
+            .map((name) => TestModel(
+                id: "fallback_${name.hashCode}",
+                title: name,
+                questionCount: 25,
+                durationMins: 60))
+            .toList();
+      }
     }
 
     if (mounted) {
@@ -138,7 +199,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
     }
   }
 
-  void _handleTypeSelection(String type) {
+  void _handleTypeSelection(String type, int examId) {
     setState(() {
       selectedType = type;
       selectedSubject = null;
@@ -148,16 +209,16 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
     bool requiresSubject = ["Chapterwise", "Subjectwise"].contains(type);
 
     if (!requiresSubject) {
-      _fetchTests(type: type);
+      _fetchTests(type: type, examId: examId);
     }
   }
 
-  void _handleSubjectSelection(String subject) {
+  void _handleSubjectSelection(String subject, int examId) {
     setState(() {
       selectedSubject = subject;
     });
     if (selectedType != null) {
-      _fetchTests(type: selectedType!, subject: subject);
+      _fetchTests(type: selectedType!, subject: subject, examId: examId);
     }
   }
 
@@ -173,9 +234,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
 
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      // --- 1. Added Custom Navbar ---
       appBar: const CustomNavBar(),
-      // --- 2. Added Drawer (Same as Selection Screen) ---
       endDrawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -187,8 +246,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
             ),
             ListTile(
               title: const Text("Dashboard"),
-              onTap: () =>
-                  Navigator.pushReplacementNamed(context, '/analytics'),
+              onTap: () => Navigator.pushReplacementNamed(context, '/analytics'),
             ),
             ListTile(
               title: const Text("Practice"),
@@ -200,7 +258,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // --- 3. Hero Section (Matched to Screen 1) ---
+            // --- Hero Section ---
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
@@ -214,7 +272,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
               child: Column(
                 children: [
                   Text(
-                    "$examName Preparation", // Dynamic Title
+                    "$examName Preparation",
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 34,
@@ -234,11 +292,9 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
 
             const SizedBox(height: 40),
 
-            // --- 4. The "Centred Box" Container ---
+            // --- Main Content Box ---
             Center(
               child: Container(
-                // Max width ensures it looks like a card on web/tablet, 
-                // but fills screen on mobile
                 constraints: const BoxConstraints(maxWidth: 900),
                 margin: const EdgeInsets.symmetric(horizontal: 20),
                 padding: const EdgeInsets.all(32),
@@ -272,7 +328,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
                       interval: const Interval(0.1, 0.4),
                       options: types,
                       selectedValue: selectedType,
-                      onSelect: _handleTypeSelection,
+                      onSelect: (type) => _handleTypeSelection(type, examId),
                     ),
 
                     AnimatedSize(
@@ -280,7 +336,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
                       child: SizedBox(height: selectedType != null ? 24 : 0),
                     ),
 
-                    // Subject Tabs (Conditionally Rendered)
+                    // Subject Tabs
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 400),
                       transitionBuilder: (child, animation) => FadeTransition(
@@ -297,7 +353,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
                               interval: const Interval(0.3, 0.6),
                               options: subjects,
                               selectedValue: selectedSubject,
-                              onSelect: _handleSubjectSelection,
+                              onSelect: (subject) => _handleSubjectSelection(subject, examId),
                             )
                           : const SizedBox.shrink(key: ValueKey('empty_subject')),
                     ),
@@ -311,7 +367,6 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
                     else if (displayedTests.isNotEmpty) ...[
                       ListView.separated(
                         shrinkWrap: true,
-                        // Important: Disable scrolling here so the outer page scrolls
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: displayedTests.length,
                         separatorBuilder: (context, index) =>
@@ -328,7 +383,6 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
                         },
                       ),
                     ] else if (selectedType != null && !isLoading) ...[
-                      // Empty State
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20.0),
@@ -340,7 +394,6 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
 
                     const SizedBox(height: 30),
                     
-                    // Request Card (Inside the main box now)
                     StaggeredFadeSlideTransition(
                       animation: _controller,
                       interval: const Interval(0.7, 1.0),
@@ -542,7 +595,7 @@ class _TabRowState extends State<_TabRow> {
                 color: isSelected
                     ? kPrimaryColor
                     : (isHovered ? Colors.grey.shade200 : Colors.transparent),
-                borderRadius: BorderRadius.circular(20), // Rounded pills
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                     color: isSelected ? kPrimaryColor : Colors.grey.shade300,
                     width: 1),
@@ -590,7 +643,6 @@ class StaggeredFadeSlideTransition extends StatelessWidget {
   }
 }
 
-// --- PLACEHOLDER TEST SCREEN ---
 class TestPlaceholderScreen extends StatelessWidget {
   final String testId;
   final String testTitle;

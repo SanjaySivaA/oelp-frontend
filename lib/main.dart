@@ -75,7 +75,9 @@ class MyApp extends ConsumerWidget {
           case '/selection':
             return MaterialPageRoute(builder: (context) => const SelectionScreen());
           case '/selection_v2':
-            return MaterialPageRoute(builder: (context) => const TestSelectionScreen());
+            return MaterialPageRoute(builder: (context) => const TestSelectionScreen(),
+                                     settings: settings
+                                    );
           case '/analytics':
             return MaterialPageRoute(builder: (context) => AnalyticsScreen());
           case '/test':
