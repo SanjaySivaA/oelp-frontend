@@ -9,6 +9,8 @@ import 'screens/selection_screen.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/test_screen/test_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'screens/selection_screen_v2.dart';
+
 
 void main() async {
   // This ensures our app is initialized correctly before we run it
@@ -37,7 +39,7 @@ class MyApp extends ConsumerWidget {
         primarySwatch: Colors.blue,
         fontFamily: 'Inter',
       ),
-      initialRoute: '/',
+      initialRoute: const String.fromEnvironment('START_ROUTE', defaultValue: '/'),
       
       // onGenerateRoute is our new, smart router and route guard
       onGenerateRoute: (settings) {
@@ -72,6 +74,8 @@ class MyApp extends ConsumerWidget {
             return MaterialPageRoute(builder: (context) => const RegisterScreen());
           case '/selection':
             return MaterialPageRoute(builder: (context) => const SelectionScreen());
+          case '/selection_v2':
+            return MaterialPageRoute(builder: (context) => const TestSelectionScreen());
           case '/analytics':
             return MaterialPageRoute(builder: (context) => AnalyticsScreen());
           case '/test':
