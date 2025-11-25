@@ -1,6 +1,5 @@
 // lib/screens/test_screen/test_screen.dart
 
-// FIX: Changed '.' to ':' in the import statement
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/test_provider.dart';
@@ -25,7 +24,6 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // This call now provides the required parameters.
       ref.read(testProvider.notifier).loadTest();
     });
   }
@@ -40,6 +38,7 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   Widget build(BuildContext context) {
     final testState = ref.watch(testProvider);
 
+    // 1. EXISTING: Listen for Question Index changes to animate the page
     ref.listen(testProvider.select((s) => s.currentQuestionIndex), (_, next) {
       if (_pageController.hasClients && _pageController.page?.round() != next) {
         _pageController.animateToPage(next,
@@ -47,6 +46,36 @@ class _TestScreenState extends ConsumerState<TestScreen> {
             curve: Curves.easeInOut);
       }
     });
+
+    // ============================================================
+    // 2. NEW: Listen for Submission Status to Navigate Away
+    // ============================================================
+    ref.listen<TestState>(testProvider, (previous, next) {
+      // If we transitioned from NOT submitted to SUBMITTED
+      if ((previous?.isSubmitted == false) && next.isSubmitted) {
+        
+        // Navigate to your analytics or home screen
+        // Using pushReplacementNamed so the user can't go "back" to the test
+        Navigator.of(context).pushReplacementNamed('/analytics'); 
+
+        // Optional: Show a success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Test Submitted Successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      
+      // Optional: Handle Submission Errors here too
+      if (previous?.error != next.error && next.error != null) {
+         ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: ${next.error}"), backgroundColor: Colors.red),
+        );
+      }
+    });
+    // ============================================================
+
 
     if (testState.error != null) {
       return Scaffold(
@@ -65,9 +94,11 @@ class _TestScreenState extends ConsumerState<TestScreen> {
       body: Stack(
         children: [
           PageView.builder(
+            physics: const NeverScrollableScrollPhysics(), // Recommended: Disable swipe so users must use buttons
             controller: _pageController,
             onPageChanged: (index) {
-              ref.read(testProvider.notifier).goToQuestion(index);
+              // Optional: Keep this if you want swipe enabled, otherwise remove
+              // ref.read(testProvider.notifier).goToQuestion(index);
             },
             itemCount: allQuestions.length,
             itemBuilder: (context, index) {

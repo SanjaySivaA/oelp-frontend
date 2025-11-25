@@ -23,6 +23,9 @@ class TestState {
   final int timeRemainingInSeconds;
   final int currentQuestionIndex;
   final int currentSectionIndex;
+  
+  // NEW: Add this flag
+  final bool isSubmitted; 
 
   TestState({
     this.isLoading = true,
@@ -33,6 +36,7 @@ class TestState {
     this.timeRemainingInSeconds = 0,
     this.currentQuestionIndex = 0,
     this.currentSectionIndex = 0,
+    this.isSubmitted = false, // Default to false
   });
 
   TestState copyWith({
@@ -44,6 +48,7 @@ class TestState {
     int? timeRemainingInSeconds,
     int? currentQuestionIndex,
     int? currentSectionIndex,
+    bool? isSubmitted, // Add here
   }) {
     return TestState(
       isLoading: isLoading ?? this.isLoading,
@@ -54,6 +59,7 @@ class TestState {
       timeRemainingInSeconds: timeRemainingInSeconds ?? this.timeRemainingInSeconds,
       currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
       currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex,
+      isSubmitted: isSubmitted ?? this.isSubmitted, // Add here
     );
   }
 }
@@ -65,17 +71,16 @@ class TestNotifier extends StateNotifier<TestState> {
 
   TestNotifier(this._apiService, this._ref) : super(TestState());
 
-  // REVERTED: This is the simple loadTest method without parameters.
   Future<void> loadTest() async {
     try {
-      state = state.copyWith(isLoading: true, error: null);
+      // Reset isSubmitted to false when loading a new test
+      state = state.copyWith(isLoading: true, error: null, isSubmitted: false);
 
       final authToken = _ref.read(authProvider).token;
       if (authToken == null) {
         throw Exception('User is not authenticated.');
       }
 
-      // Call the simpler getTest method
       final testData = await _apiService.getTest(authToken);
 
       final initialStatuses = <String, QuestionStatus>{};
@@ -87,7 +92,6 @@ class TestNotifier extends StateNotifier<TestState> {
         initialStatuses[allQuestions.first.questionId] = QuestionStatus.notAnswered;
       }
 
-      // FIX for type error is included here
       final Map<String, dynamic> initialResponses = { for (var q in allQuestions) q.questionId: null };
 
       state = state.copyWith(
@@ -111,12 +115,15 @@ class TestNotifier extends StateNotifier<TestState> {
       if (state.timeRemainingInSeconds > 0) {
         state = state.copyWith(timeRemainingInSeconds: state.timeRemainingInSeconds - 1);
       } else {
+        // --- TIMER HIT 0: AUTO SUBMIT ---
         timer.cancel();
-        submitTest();
+        submitTest(); 
       }
     });
   }
 
+  // ... (answerQuestion, goToQuestion, changeSection, saveAndNext, markForReviewAndNext, clearResponse remain the same) ...
+  
   void answerQuestion(String questionId, dynamic answer) {
     final newResponses = Map<String, dynamic>.from(state.responses);
     newResponses[questionId] = answer;
@@ -204,18 +211,18 @@ class TestNotifier extends StateNotifier<TestState> {
     state = state.copyWith(responses: newResponses, statuses: newStatuses);
   }
 
- Future<void> submitTest() async {
+  Future<void> submitTest() async {
     _timer?.cancel();
     if (state.test == null) return;
+    
+    // Prevent double submission
+    if (state.isLoading) return; 
+    
+    state = state.copyWith(isLoading: true); // Show loading spinner
 
     try {
       final authToken = _ref.read(authProvider).token;
-      if (authToken == null) {
-        throw Exception("User not authenticated.");
-      }
-
-      print('--- SUBMITTING TEST ---');
-      print('Final Responses: ${state.responses}');
+      if (authToken == null) throw Exception("User not authenticated.");
 
       await _apiService.submitTest(
         authToken: authToken,
@@ -223,14 +230,12 @@ class TestNotifier extends StateNotifier<TestState> {
         responses: state.responses,
       );
 
-      print('--- SUBMISSION SUCCESSFUL ---');
-      // Here you could update the state to show a "Submitted!" message
-      // or navigate the user away.
+      // --- SUCCESS: SET FLAG TO TRUE ---
+      state = state.copyWith(isLoading: false, isSubmitted: true);
 
     } catch (e) {
       print('--- SUBMISSION FAILED ---');
-      print(e.toString());
-      // Optionally, update the state to show an error message to the user
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
