@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/custom_navbar.dart'; 
+import '../widgets/custom_navbar.dart';
 
 class SelectionScreen extends StatelessWidget {
   const SelectionScreen({super.key});
@@ -7,33 +7,22 @@ class SelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomNavBar(), 
-      endDrawer: Drawer( 
+      appBar: const CustomNavBar(),
+      endDrawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             const DrawerHeader(
               decoration: BoxDecoration(color: Colors.blue),
-              child: Text(
-                "Menu",
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
+              child: Text("Menu", style: TextStyle(color: Colors.white, fontSize: 18)),
             ),
             ListTile(
               title: const Text("Dashboard"),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/analytics');
-              },
-            ),
-            ListTile(
-              title: const Text("Tests"),
-              onTap: () {},
+              onTap: () => Navigator.pushReplacementNamed(context, '/analytics'),
             ),
             ListTile(
               title: const Text("Practice"),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/test');
-              },
+              onTap: () => Navigator.pushReplacementNamed(context, '/test'),
             ),
           ],
         ),
@@ -41,7 +30,7 @@ class SelectionScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // -------- HERO SECTION -------- //
+            // ... (Hero Section remains the same) ...
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
@@ -52,122 +41,72 @@ class SelectionScreen extends StatelessWidget {
                   end: Alignment.bottomCenter,
                 ),
               ),
-              child: Column(
-                children: const [
+              child: const Column(
+                children: [
                   Text(
-                    "Choose Your Test Type",
+                    "Pick your Exam",
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   SizedBox(height: 12),
                   Text(
-                    "Select from India's most competitive entrance examinations and start your journey towards academic excellence.",
+                    "Select from India's most competitive entrance examinations.",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 40),
-
-            // -------- AVAILABLE TEST TYPES -------- //
-            const Text(
-              "Available Test Types",
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                "Choose the examination that aligns with your career goals and academic aspirations.",
-                style: TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 30),
 
             LayoutBuilder(
               builder: (context, constraints) {
+                // List of cards to render
+                final cards = [
+                  const TestCard(
+                    examId: 1, // <--- JEE MAIN
+                    icon: Icons.school,
+                    title: "JEE Main",
+                    description: "Joint Entrance Examination - Main for admission to NITs and IIITs.",
+                    subjects: ["Physics", "Chemistry", "Mathematics"],
+                    buttonText: "Select JEE Main",
+                  ),
+                  const SizedBox(width: 20, height: 20),
+                  const TestCard(
+                    examId: 3, // <--- JEE ADVANCED
+                    icon: Icons.menu_book,
+                    title: "JEE Advanced",
+                    description: "Advanced level examination for admission to IITs.",
+                    subjects: ["Physics", "Chemistry", "Mathematics"],
+                    buttonText: "Select JEE Advanced",
+                  ),
+                  const SizedBox(width: 20, height: 20),
+                  const TestCard(
+                    examId: 2, // <--- NEET
+                    icon: Icons.medical_services,
+                    title: "NEET",
+                    description: "National Eligibility cum Entrance Test for medical colleges.",
+                    subjects: ["Physics", "Chemistry", "Biology"],
+                    buttonText: "Select NEET",
+                  ),
+                ];
+
                 if (constraints.maxWidth > 1000) {
-                  // 3 cards in a row for wide screens
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Flexible(
-                        child: TestCard(
-                          icon: Icons.school,
-                          title: "JEE Main",
-                          description:
-                              "Joint Entrance Examination - Main for admission to NITs, IIITs, and other centrally funded technical institutions.",
-                          subjects: ["Physics", "Chemistry", "Mathematics"],
-                          buttonText: "Select JEE Main",
-                        ),
-                      ),
-                      SizedBox(width: 20),
-                      Flexible(
-                        child: TestCard(
-                          icon: Icons.menu_book,
-                          title: "JEE Advanced",
-                          description:
-                              "Advanced level examination for admission to Indian Institutes of Technology (IITs) and other prestigious engineering colleges.",
-                          subjects: ["Physics", "Chemistry", "Mathematics"],
-                          buttonText: "Select JEE Advanced",
-                        ),
-                      ),
-                      SizedBox(width: 20),
-                      Flexible(
-                        child: TestCard(
-                          icon: Icons.medical_services,
-                          title: "NEET",
-                          description:
-                              "National Eligibility cum Entrance Test for admission to medical and dental colleges across India.",
-                          subjects: ["Physics", "Chemistry", "Biology"],
-                          buttonText: "Select NEET",
-                        ),
-                      ),
+                    children: [
+                      Flexible(child: cards[0]),
+                      cards[1], // Spacer
+                      Flexible(child: cards[2]),
+                      cards[3], // Spacer
+                      Flexible(child: cards[4]),
                     ],
                   );
                 } else {
-                  // stack vertically for mobile
-                  return Column(
-                    children: const [
-                      TestCard(
-                        icon: Icons.school,
-                        title: "JEE Main",
-                        description:
-                            "Joint Entrance Examination - Main for admission to NITs, IIITs, and other centrally funded technical institutions.",
-                        subjects: ["Physics", "Chemistry", "Mathematics"],
-                        buttonText: "Select JEE Main",
-                      ),
-                      SizedBox(height: 20),
-                      TestCard(
-                        icon: Icons.menu_book,
-                        title: "JEE Advanced",
-                        description:
-                            "Advanced level examination for admission to Indian Institutes of Technology (IITs) and other prestigious engineering colleges.",
-                        subjects: ["Physics", "Chemistry", "Mathematics"],
-                        buttonText: "Select JEE Advanced",
-                      ),
-                      SizedBox(height: 20),
-                      TestCard(
-                        icon: Icons.medical_services,
-                        title: "NEET",
-                        description:
-                            "National Eligibility cum Entrance Test for admission to medical and dental colleges across India.",
-                        subjects: ["Physics", "Chemistry", "Biology"],
-                        buttonText: "Select NEET",
-                      ),
-                    ],
-                  );
+                  return Column(children: cards);
                 }
               },
             ),
-
             const SizedBox(height: 40),
           ],
         ),
@@ -176,8 +115,9 @@ class SelectionScreen extends StatelessWidget {
   }
 }
 
-// -------- TEST CARD WIDGET -------- //
+// -------- UPDATED TEST CARD -------- //
 class TestCard extends StatefulWidget {
+  final int examId; // <--- NEW FIELD
   final IconData icon;
   final String title;
   final String description;
@@ -186,6 +126,7 @@ class TestCard extends StatefulWidget {
 
   const TestCard({
     super.key,
+    required this.examId, // <--- REQUIRED
     required this.icon,
     required this.title,
     required this.description,
@@ -207,9 +148,7 @@ class _TestCardState extends State<TestCard> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        transform: _isHovered
-            ? (Matrix4.identity()..scale(1.03))
-            : Matrix4.identity(),
+        transform: _isHovered ? (Matrix4.identity()..scale(1.03)) : Matrix4.identity(),
         child: Card(
           elevation: _isHovered ? 8 : 2,
           shape: RoundedRectangleBorder(
@@ -223,20 +162,14 @@ class _TestCardState extends State<TestCard> {
               children: [
                 Icon(widget.icon, size: 40, color: Colors.blue),
                 const SizedBox(height: 16),
-                Text(widget.title,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(widget.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                Text(widget.description,
-                    style: const TextStyle(color: Colors.grey)),
+                Text(widget.description, style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   children: widget.subjects
-                      .map((s) => Chip(
-                            label: Text(s),
-                            backgroundColor: Colors.grey.shade200,
-                          ))
+                      .map((s) => Chip(label: Text(s), backgroundColor: Colors.grey.shade200))
                       .toList(),
                 ),
                 const SizedBox(height: 16),
@@ -244,13 +177,14 @@ class _TestCardState extends State<TestCard> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("${widget.title} selected")),
+                    // Pass the Integer ID
+                    Navigator.pushNamed(
+                      context,
+                      '/selection_v2',
+                      arguments: widget.examId, 
                     );
                   },
                   child: Row(

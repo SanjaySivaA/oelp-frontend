@@ -1,11 +1,27 @@
 import 'package:flutter/material.dart';
+import '../widgets/custom_navbar.dart'; // Ensure this path is correct
 
-// --- Theme Colors and other constants are the same ---
+// --- Theme Colors ---
 const Color kPrimaryColor = Color(0xFF299FE8);
 const Color kDarkerSecondaryColor = Color(0xFF1F6F9D);
 const Color kLighterSecondaryColor = Color(0xFF58B6F2);
 const Color kBackgroundColor = Color(0xFFF8F9FA);
 const Color kTextColor = Color(0xFF1A202C);
+
+// --- Data Model (Mock) ---
+class TestModel {
+  final String id;
+  final String title;
+  final int questionCount;
+  final int durationMins;
+
+  TestModel({
+    required this.id,
+    required this.title,
+    required this.questionCount,
+    required this.durationMins,
+  });
+}
 
 class TestSelectionScreen extends StatefulWidget {
   const TestSelectionScreen({super.key});
@@ -16,19 +32,45 @@ class TestSelectionScreen extends StatefulWidget {
 
 class _TestSelectionScreenState extends State<TestSelectionScreen>
     with TickerProviderStateMixin {
-  String? selectedExam;
   String? selectedType;
   String? selectedSubject;
 
-  final exams = ["JEE Main", "JEE Advanced", "NEET"];
-  final types = ["Chapterwise", "Subjectwise", "Full Syllabus"];
+  // Loading state for the "API call"
+  bool isLoading = false;
+  List<TestModel> displayedTests = [];
+
+  final types = ["Chapterwise", "Subjectwise", "Full Syllabus", "For You"];
   final subjects = ["Physics", "Chemistry", "Mathematics"];
 
-  final suggestedTests = {
-    "Physics": ["Mechanics", "Thermodynamics", "Waves and Sound", "Electricity and Magnetism", "Optics", "Modern Physics"],
-    "Chemistry": ["Physical Chemistry", "Organic Chemistry", "Inorganic Chemistry"],
-    "Mathematics": ["Algebra", "Calculus", "Coordinate Geometry", "Trigonometry"],
+  // Hardcoded Data Repository
+  final Map<String, List<String>> _repoChapterwise = {
+    "Physics": [
+      "Mechanics",
+      "Thermodynamics",
+      "Waves and Sound",
+      "Electricity and Magnetism",
+      "Optics",
+      "Modern Physics"
+    ],
+    "Chemistry": [
+      "Physical Chemistry",
+      "Organic Chemistry",
+      "Inorganic Chemistry"
+    ],
+    "Mathematics": [
+      "Algebra",
+      "Calculus",
+      "Coordinate Geometry",
+      "Trigonometry"
+    ],
   };
+
+  final List<String> _repoFullSyllabus = [
+    "Mock Test 1 (2024 Pattern)",
+    "Mock Test 2 (2024 Pattern)",
+    "Mock Test 3 (Previous Year)",
+    "All India Open Test - 5"
+  ];
 
   late final AnimationController _controller;
 
@@ -47,112 +89,270 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
     super.dispose();
   }
 
+  /// Helper to get Exam Name from ID
+  String _getExamName(int id) {
+    switch (id) {
+      case 1: return "JEE Main";
+      case 2: return "NEET";
+      case 3: return "JEE Advanced";
+      default: return "Entrance Exam";
+    }
+  }
+
+  /// Simulates fetching data
+  Future<void> _fetchTests({required String type, String? subject}) async {
+    setState(() {
+      isLoading = true;
+      displayedTests = [];
+    });
+
+    // Simulate Network Delay
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    List<TestModel> results = [];
+
+    if (type == "Full Syllabus" || type == "For You") {
+      results = _repoFullSyllabus
+          .map((name) => TestModel(
+              id: "test_${name.hashCode}",
+              title: name,
+              questionCount: 75,
+              durationMins: 180))
+          .toList();
+    } else if (subject != null) {
+      final rawNames = _repoChapterwise[subject] ?? [];
+      results = rawNames
+          .map((name) => TestModel(
+              id: "test_${name.hashCode}",
+              title: name,
+              questionCount: 25,
+              durationMins: 60))
+          .toList();
+    }
+
+    if (mounted) {
+      setState(() {
+        displayedTests = results;
+        isLoading = false;
+      });
+    }
+  }
+
+  void _handleTypeSelection(String type) {
+    setState(() {
+      selectedType = type;
+      selectedSubject = null;
+      displayedTests = [];
+    });
+
+    bool requiresSubject = ["Chapterwise", "Subjectwise"].contains(type);
+
+    if (!requiresSubject) {
+      _fetchTests(type: type);
+    }
+  }
+
+  void _handleSubjectSelection(String subject) {
+    setState(() {
+      selectedSubject = subject;
+    });
+    if (selectedType != null) {
+      _fetchTests(type: selectedType!, subject: subject);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // We use a simple Column inside a SingleChildScrollView. This is more robust
-    // than a CustomScrollView for this specific layout and avoids the blank screen issue.
+    // 1. Safely retrieve arguments
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final int examId = (args is int) ? args : 1;
+    final String examName = _getExamName(examId);
+
+    // Helper to determine if we should show the subject row
+    bool showSubjects = ["Chapterwise", "Subjectwise"].contains(selectedType);
+
     return Scaffold(
       backgroundColor: kBackgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              StaggeredFadeSlideTransition(
-                animation: _controller,
-                interval: const Interval(0.0, 0.2),
-                child: const Text(
-                  "Mock Test Platform",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kTextColor),
+      // --- 1. Added Custom Navbar ---
+      appBar: const CustomNavBar(),
+      // --- 2. Added Drawer (Same as Selection Screen) ---
+      endDrawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blue),
+              child: Text("Menu",
+                  style: TextStyle(color: Colors.white, fontSize: 18)),
+            ),
+            ListTile(
+              title: const Text("Dashboard"),
+              onTap: () =>
+                  Navigator.pushReplacementNamed(context, '/analytics'),
+            ),
+            ListTile(
+              title: const Text("Practice"),
+              onTap: () => Navigator.pushReplacementNamed(context, '/test'),
+            ),
+          ],
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // --- 3. Hero Section (Matched to Screen 1) ---
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue, Colors.lightBlueAccent],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
-              const SizedBox(height: 40),
-              _SelectionStep(
-                animation: _controller,
-                interval: const Interval(0.1, 0.4),
-                title: "Choose Your Exam",
-                options: exams,
-                selectedValue: selectedExam,
-                onSelect: (val) => setState(() {
-                  selectedExam = val;
-                  selectedType = null;
-                  selectedSubject = null;
-                }),
-              ),
-              const SizedBox(height: 40),
-
-              // Using AnimatedSwitcher for smooth appearance/disappearance
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SizeTransition(sizeFactor: animation, axisAlignment: -1.0, child: child)),
-                child: selectedExam != null
-                    ? _SelectionStep(
-                        key: const ValueKey('type_step'),
-                        animation: _controller,
-                        interval: const Interval(0.3, 0.6),
-                        title: "Choose Test Type",
-                        options: types,
-                        selectedValue: selectedType,
-                        onSelect: (val) => setState(() {
-                          selectedType = val;
-                          selectedSubject = null;
-                        }),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('empty_type')),
-              ),
-              if (selectedExam != null) const SizedBox(height: 40),
-
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                 transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: SizeTransition(sizeFactor: animation, axisAlignment: -1.0, child: child)),
-                child: selectedType != null
-                    ? _SelectionStep(
-                        key: const ValueKey('subject_step'),
-                        animation: _controller,
-                        interval: const Interval(0.5, 0.8),
-                        title: "Select Subject",
-                        options: subjects,
-                        selectedValue: selectedSubject,
-                        onSelect: (val) => setState(() => selectedSubject = val),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('empty_subject')),
-              ),
-              if (selectedType != null) const SizedBox(height: 40),
-
-              if (selectedSubject != null) ...[
-                StaggeredFadeSlideTransition(
-                  animation: _controller,
-                  interval: const Interval(0.7, 1.0),
-                  child: Text(
-                    "Suggested $selectedSubject Tests",
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kTextColor),
+              child: Column(
+                children: [
+                  Text(
+                    "$examName Preparation", // Dynamic Title
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Select a specific chapter, subject, or take a full length mock test.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            // --- 4. The "Centred Box" Container ---
+            Center(
+              child: Container(
+                // Max width ensures it looks like a card on web/tablet, 
+                // but fills screen on mobile
+                constraints: const BoxConstraints(maxWidth: 900),
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                  border: Border.all(color: Colors.grey.shade200),
                 ),
-                const SizedBox(height: 16),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: suggestedTests[selectedSubject]!.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final testName = suggestedTests[selectedSubject]![index];
-                    return StaggeredFadeSlideTransition(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Filter Tests",
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: kTextColor),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Test Type Tabs
+                    _SelectionStep(
                       animation: _controller,
-                      interval: Interval(0.8 + (index * 0.05), 1.0, curve: Curves.easeOut),
-                      child: _TestListItem(testName: testName),
-                    );
-                  },
+                      interval: const Interval(0.1, 0.4),
+                      options: types,
+                      selectedValue: selectedType,
+                      onSelect: _handleTypeSelection,
+                    ),
+
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      child: SizedBox(height: selectedType != null ? 24 : 0),
+                    ),
+
+                    // Subject Tabs (Conditionally Rendered)
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 400),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SizeTransition(
+                            sizeFactor: animation,
+                            axisAlignment: -1.0,
+                            child: child),
+                      ),
+                      child: showSubjects
+                          ? _SelectionStep(
+                              key: const ValueKey('subject_step'),
+                              animation: _controller,
+                              interval: const Interval(0.3, 0.6),
+                              options: subjects,
+                              selectedValue: selectedSubject,
+                              onSelect: _handleSubjectSelection,
+                            )
+                          : const SizedBox.shrink(key: ValueKey('empty_subject')),
+                    ),
+
+                    const Divider(height: 40, color: Colors.black12),
+
+                    // Test List
+                    if (isLoading)
+                      const Center(
+                          child: CircularProgressIndicator(color: kPrimaryColor))
+                    else if (displayedTests.isNotEmpty) ...[
+                      ListView.separated(
+                        shrinkWrap: true,
+                        // Important: Disable scrolling here so the outer page scrolls
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: displayedTests.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final test = displayedTests[index];
+                          return StaggeredFadeSlideTransition(
+                            animation: _controller,
+                            interval: Interval(
+                                0.0 + (index * 0.05).clamp(0.0, 0.4), 1.0,
+                                curve: Curves.easeOut),
+                            child: _TestListItem(test: test),
+                          );
+                        },
+                      ),
+                    ] else if (selectedType != null && !isLoading) ...[
+                      // Empty State
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Text("Select options to view tests",
+                              style: TextStyle(color: Colors.grey)),
+                        ),
+                      )
+                    ],
+
+                    const SizedBox(height: 30),
+                    
+                    // Request Card (Inside the main box now)
+                    StaggeredFadeSlideTransition(
+                      animation: _controller,
+                      interval: const Interval(0.7, 1.0),
+                      child: _RequestTestCard(),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 40),
-                StaggeredFadeSlideTransition(
-                   animation: _controller,
-                   interval: const Interval(0.8, 1.0),
-                   child: _RequestTestCard()
-                 ),
-              ],
-            ],
-          ),
+              ),
+            ),
+            
+            const SizedBox(height: 60),
+          ],
         ),
       ),
     );
@@ -161,11 +361,9 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
 
 // --- REUSABLE WIDGETS ---
 
-// A reusable widget for each selection step
 class _SelectionStep extends StatelessWidget {
   final Animation<double> animation;
   final Interval interval;
-  final String title;
   final List<String> options;
   final String? selectedValue;
   final ValueChanged<String> onSelect;
@@ -174,7 +372,6 @@ class _SelectionStep extends StatelessWidget {
     super.key,
     required this.animation,
     required this.interval,
-    required this.title,
     required this.options,
     required this.selectedValue,
     required this.onSelect,
@@ -185,26 +382,18 @@ class _SelectionStep extends StatelessWidget {
     return StaggeredFadeSlideTransition(
       animation: animation,
       interval: interval,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kTextColor)),
-          const SizedBox(height: 16),
-          _TabRow(
-            options: options,
-            selected: selectedValue,
-            onSelect: onSelect,
-          ),
-        ],
+      child: _TabRow(
+        options: options,
+        selected: selectedValue,
+        onSelect: onSelect,
       ),
     );
   }
 }
 
-// A dedicated stateful widget for the list items to manage their own hover state
 class _TestListItem extends StatefulWidget {
-  final String testName;
-  const _TestListItem({required this.testName});
+  final TestModel test;
+  const _TestListItem({required this.test});
 
   @override
   State<_TestListItem> createState() => _TestListItemState();
@@ -213,6 +402,16 @@ class _TestListItem extends StatefulWidget {
 class _TestListItemState extends State<_TestListItem> {
   bool _isHovered = false;
 
+  void _navigateToTest(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TestPlaceholderScreen(
+            testId: widget.test.id, testTitle: widget.test.title),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -220,42 +419,43 @@ class _TestListItemState extends State<_TestListItem> {
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () {
-          // TODO: Navigate to test screen
-        },
+        onTap: () => _navigateToTest(context),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           decoration: BoxDecoration(
-            color: _isHovered ? Colors.white : kBackgroundColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _isHovered ? kPrimaryColor : Colors.grey.shade300),
-            boxShadow: _isHovered ? [
-              BoxShadow(
-                color: kPrimaryColor.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              )
-            ] : [],
+            color: _isHovered ? Colors.blue.shade50 : kBackgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: _isHovered ? kPrimaryColor : Colors.grey.shade300),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.testName,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _isHovered ? kDarkerSecondaryColor : kTextColor),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text("20 Questions • 60 mins", style: TextStyle(fontSize: 13, color: Colors.grey)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.test.title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: _isHovered ? kDarkerSecondaryColor : kTextColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${widget.test.questionCount} Questions • ${widget.test.durationMins} mins",
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ],
+                ),
               ),
               Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: _isHovered ? kPrimaryColor : Colors.grey.shade400,
+                Icons.play_circle_fill,
+                size: 24,
+                color: _isHovered ? kPrimaryColor : Colors.grey.shade300,
               ),
             ],
           ),
@@ -265,38 +465,42 @@ class _TestListItemState extends State<_TestListItem> {
   }
 }
 
-// The custom-styled "Request a Test" card
 class _RequestTestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: kDarkerSecondaryColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(24),
-      child: Row(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Don't see what you're looking for?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                SizedBox(height: 8),
-                Text("Request a custom chapter or topic-wise test and our AI will generate it for you.", style: TextStyle(color: Colors.white70)),
-              ],
+          const Text("Don't see what you're looking for?",
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white)),
+          const SizedBox(height: 8),
+          const Text(
+              "Request a custom chapter or topic-wise test and our AI will generate it for you.",
+              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kLighterSecondaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text("Request Custom Test",
+                  style: TextStyle(fontWeight: FontWeight.w600)),
             ),
-          ),
-          const SizedBox(width: 24),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kLighterSecondaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text("Request Test", style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -304,9 +508,6 @@ class _RequestTestCard extends StatelessWidget {
   }
 }
 
-// --- HELPER WIDGETS ---
-
-// The tab row widget, with improved styling
 class _TabRow extends StatefulWidget {
   final List<String> options;
   final String? selected;
@@ -322,7 +523,9 @@ class _TabRowState extends State<_TabRow> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
       children: widget.options.map((option) {
         final isSelected = option == widget.selected;
         final isHovered = option == _hoveredTab;
@@ -334,13 +537,15 @@ class _TabRowState extends State<_TabRow> {
             onTap: () => widget.onSelect(option),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                // --- THE FIX IS HERE ---
-                // Changed the incorrect _isHovered to the correct isHovered
-                color: isSelected ? kPrimaryColor : (isHovered ? Colors.grey.shade200 : Colors.transparent),
-                borderRadius: BorderRadius.circular(8),
+                color: isSelected
+                    ? kPrimaryColor
+                    : (isHovered ? Colors.grey.shade200 : Colors.transparent),
+                borderRadius: BorderRadius.circular(20), // Rounded pills
+                border: Border.all(
+                    color: isSelected ? kPrimaryColor : Colors.grey.shade300,
+                    width: 1),
               ),
               child: Text(
                 option,
@@ -357,8 +562,6 @@ class _TabRowState extends State<_TabRow> {
   }
 }
 
-
-// A reusable animation wrapper
 class StaggeredFadeSlideTransition extends StatelessWidget {
   final Animation<double> animation;
   final Interval interval;
@@ -382,6 +585,25 @@ class StaggeredFadeSlideTransition extends StatelessWidget {
           end: Offset.zero,
         ).animate(curvedAnimation),
         child: child,
+      ),
+    );
+  }
+}
+
+// --- PLACEHOLDER TEST SCREEN ---
+class TestPlaceholderScreen extends StatelessWidget {
+  final String testId;
+  final String testTitle;
+
+  const TestPlaceholderScreen(
+      {super.key, required this.testId, required this.testTitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(testTitle)),
+      body: Center(
+        child: Text("Fetching Test Details for ID: $testId"),
       ),
     );
   }
