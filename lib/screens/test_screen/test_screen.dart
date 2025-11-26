@@ -23,8 +23,14 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   @override
   void initState() {
     super.initState();
+    // Use post frame callback to safely access context and provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(testProvider.notifier).loadTest();
+      // 1. Extract the Session ID passed from Selection Screen
+      final args = ModalRoute.of(context)?.settings.arguments;
+      final String? sessionId = (args is String) ? args : null;
+
+      // 2. Load that SPECIFIC test (or random if null)
+      ref.read(testProvider.notifier).loadTest(testId: sessionId);
     });
   }
 

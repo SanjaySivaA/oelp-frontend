@@ -23,9 +23,7 @@ class TestState {
   final int timeRemainingInSeconds;
   final int currentQuestionIndex;
   final int currentSectionIndex;
-  
-  // NEW: Add this flag
-  final bool isSubmitted; 
+  final bool isSubmitted;
 
   TestState({
     this.isLoading = true,
@@ -36,7 +34,7 @@ class TestState {
     this.timeRemainingInSeconds = 0,
     this.currentQuestionIndex = 0,
     this.currentSectionIndex = 0,
-    this.isSubmitted = false, // Default to false
+    this.isSubmitted = false,
   });
 
   TestState copyWith({
@@ -48,7 +46,7 @@ class TestState {
     int? timeRemainingInSeconds,
     int? currentQuestionIndex,
     int? currentSectionIndex,
-    bool? isSubmitted, // Add here
+    bool? isSubmitted,
   }) {
     return TestState(
       isLoading: isLoading ?? this.isLoading,
@@ -59,7 +57,7 @@ class TestState {
       timeRemainingInSeconds: timeRemainingInSeconds ?? this.timeRemainingInSeconds,
       currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
       currentSectionIndex: currentSectionIndex ?? this.currentSectionIndex,
-      isSubmitted: isSubmitted ?? this.isSubmitted, // Add here
+      isSubmitted: isSubmitted ?? this.isSubmitted,
     );
   }
 }
@@ -71,9 +69,10 @@ class TestNotifier extends StateNotifier<TestState> {
 
   TestNotifier(this._apiService, this._ref) : super(TestState());
 
-  Future<void> loadTest() async {
+  // UPDATED: Now accepts an optional testId
+  Future<void> loadTest({String? testId}) async {
     try {
-      // Reset isSubmitted to false when loading a new test
+      // Reset state for new test load
       state = state.copyWith(isLoading: true, error: null, isSubmitted: false);
 
       final authToken = _ref.read(authProvider).token;
@@ -81,7 +80,17 @@ class TestNotifier extends StateNotifier<TestState> {
         throw Exception('User is not authenticated.');
       }
 
-      final testData = await _apiService.getTest(authToken);
+      Test testData;
+
+      // LOGIC: Fetch Specific Test vs Random Test
+      if (testId != null) {
+        // If ID provided (from Chapter Selection), fetch that specific test
+        // NOTE: Ensure your ApiService has this method!
+        testData = await _apiService.getTestById(authToken, testId);
+      } else {
+        // Fallback: Fetch a random test (original behavior)
+        testData = await _apiService.getTest(authToken);
+      }
 
       final initialStatuses = <String, QuestionStatus>{};
       final allQuestions = testData.sections.expand((s) => s.questions).toList();
@@ -115,15 +124,12 @@ class TestNotifier extends StateNotifier<TestState> {
       if (state.timeRemainingInSeconds > 0) {
         state = state.copyWith(timeRemainingInSeconds: state.timeRemainingInSeconds - 1);
       } else {
-        // --- TIMER HIT 0: AUTO SUBMIT ---
         timer.cancel();
-        submitTest(); 
+        submitTest();
       }
     });
   }
 
-  // ... (answerQuestion, goToQuestion, changeSection, saveAndNext, markForReviewAndNext, clearResponse remain the same) ...
-  
   void answerQuestion(String questionId, dynamic answer) {
     final newResponses = Map<String, dynamic>.from(state.responses);
     newResponses[questionId] = answer;
@@ -214,11 +220,9 @@ class TestNotifier extends StateNotifier<TestState> {
   Future<void> submitTest() async {
     _timer?.cancel();
     if (state.test == null) return;
-    
-    // Prevent double submission
     if (state.isLoading) return; 
     
-    state = state.copyWith(isLoading: true); // Show loading spinner
+    state = state.copyWith(isLoading: true);
 
     try {
       final authToken = _ref.read(authProvider).token;
@@ -230,7 +234,6 @@ class TestNotifier extends StateNotifier<TestState> {
         responses: state.responses,
       );
 
-      // --- SUCCESS: SET FLAG TO TRUE ---
       state = state.copyWith(isLoading: false, isSubmitted: true);
 
     } catch (e) {

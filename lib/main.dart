@@ -80,6 +80,11 @@ class MyApp extends ConsumerWidget {
                                     );
           case '/analytics':
             return MaterialPageRoute(builder: (context) => AnalyticsScreen());
+          case '/test_screen': // Change from '/test' to match your pushNamed call
+            return MaterialPageRoute(
+              builder: (context) => const TestScreen(),
+              settings: settings, // IMPORTANT: Pass settings so arguments (sessionId) reach the screen
+            );
           case '/test':
             return MaterialPageRoute(builder: (context) => const TestScreen());
           default:
