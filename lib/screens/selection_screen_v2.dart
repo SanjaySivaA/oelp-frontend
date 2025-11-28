@@ -5,7 +5,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../widgets/custom_navbar.dart';
 
 // --- Configuration ---
-// Fetches from --dart-define=API_URL=... or defaults to localhost
 const String kBackendUrl = String.fromEnvironment(
   'API_BASE_URL', 
   defaultValue: 'http://127.0.0.1:8000'
@@ -33,7 +32,6 @@ class TestModel {
   });
 
   factory TestModel.fromJson(Map<String, dynamic> json) {
-    // Handles both Template response and Chapter response formats
     return TestModel(
       id: (json['chapterId'] ?? json['template_id'] ?? json['test_id'] ?? "").toString(),
       title: json['chapterName'] ?? json['template_name'] ?? json['test_name'] ?? "Unknown Test",
@@ -107,27 +105,35 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
       // SCENARIO 1: Chapterwise Selection
       if (type == "Chapterwise" && subject != null) {
         final uri = Uri.parse("$kBackendUrl/subjects/$subject/chapters");
-        print("📡 Fetching Chapters: $uri");
         
         final response = await http.get(uri, headers: headers);
         if (response.statusCode == 200) {
           final List<dynamic> data = json.decode(response.body);
           results = data.map((json) => TestModel.fromJson(json)).toList();
-        } else {
-          print("⚠️ Backend Error: ${response.statusCode}");
         }
       } 
-      // SCENARIO 2: Placeholder for other types (Full Syllabus, etc.)
-      else if (type == "Full Syllabus") {
-         // Fallback logic for now
-         await Future.delayed(const Duration(milliseconds: 500));
+      // SCENARIO 2: Subjectwise Selection (Hardcoded DB IDs)
+      else if (type == "Subjectwise") {
+         await Future.delayed(const Duration(milliseconds: 200));
          results = [
-           TestModel(id: "mock1", title: "JEE Main Mock 1", questionCount: 75, durationMins: 180),
-           TestModel(id: "mock2", title: "JEE Main Mock 2", questionCount: 75, durationMins: 180),
+           TestModel(id: "3", title: "Physics Full Subject Test", questionCount: 30, durationMins: 60),
+           TestModel(id: "1", title: "Chemistry Full Subject Test", questionCount: 30, durationMins: 60),
+           TestModel(id: "2", title: "Mathematics Full Subject Test", questionCount: 30, durationMins: 60),
+         ];
+      }
+      // SCENARIO 3: Full Mock (Uses /getTest endpoint)
+      else if (type == "Full Syllabus") {
+         // We add a single "Generator Card"
+         results = [
+           TestModel(
+             id: "full_mock_gen", 
+             title: "Generate Full Mock Test", 
+             questionCount: 54, // Matches backend limit
+             durationMins: 180
+           ),
          ];
       }
     } catch (e) {
-      print("⚠️ Connection Failed: $e");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error fetching data: $e")));
     }
 
@@ -146,9 +152,9 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
       displayedTests = [];
     });
 
-    bool requiresSubject = ["Chapterwise", "Subjectwise"].contains(type);
+    bool requiresSubjectSelection = (type == "Chapterwise");
 
-    if (!requiresSubject) {
+    if (!requiresSubjectSelection) {
       _fetchTests(type: type, examId: examId);
     }
   }
@@ -168,7 +174,7 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
     final int examId = (args is int) ? args : 1;
     final String examName = _getExamName(examId);
 
-    bool showSubjects = ["Chapterwise", "Subjectwise"].contains(selectedType);
+    bool showSubjects = selectedType == "Chapterwise";
 
     return Scaffold(
       backgroundColor: kBackgroundColor,
@@ -286,13 +292,14 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
                             child: _TestListItem(
                               test: test, 
                               selectedType: selectedType,
-                              subject: selectedSubject, // Pass subject for starting test
                             ),
                           );
                         },
                       ),
                     ] else if (selectedType != null && !isLoading) ...[
-                      const Center(child: Padding(padding: EdgeInsets.all(20.0), child: Text("No tests found. Select options to view.", style: TextStyle(color: Colors.grey))))
+                      selectedType == "Chapterwise" && selectedSubject == null 
+                      ? const Center(child: Padding(padding: EdgeInsets.all(20.0), child: Text("Select a subject to view chapters.", style: TextStyle(color: Colors.grey))))
+                      : const Center(child: Padding(padding: EdgeInsets.all(20.0), child: Text("No tests found.", style: TextStyle(color: Colors.grey))))
                     ],
 
                     const SizedBox(height: 30),
@@ -313,9 +320,8 @@ class _TestSelectionScreenState extends State<TestSelectionScreen>
 class _TestListItem extends StatefulWidget {
   final TestModel test;
   final String? selectedType;
-  final String? subject;
 
-  const _TestListItem({required this.test, this.selectedType, this.subject});
+  const _TestListItem({required this.test, this.selectedType});
 
   @override
   State<_TestListItem> createState() => _TestListItemState();
@@ -336,34 +342,43 @@ class _TestListItemState extends State<_TestListItem> {
         if (token != null) "Authorization": "Bearer $token",
       };
 
-      // LOGIC 1: START CHAPTER TEST
+      Uri? url;
+      http.Response? response;
+
+      // --- LOGIC 1: START CHAPTER TEST (POST) ---
       if (widget.selectedType == "Chapterwise") {
-        final url = Uri.parse('$kBackendUrl/tests/start/chapter');
+        url = Uri.parse('$kBackendUrl/tests/start/chapter');
         final body = jsonEncode({
-          "chapterId": int.parse(widget.test.id), // Ensure ID is int
+          "chapterId": int.parse(widget.test.id),
           "questionCount": widget.test.questionCount
         });
-
-        final response = await http.post(url, headers: headers, body: body);
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          // Assuming backend returns { "sessionId": "..." }
-          // Or if it returns the full test object, extract the ID.
-          final sessionId = data['sessionId'] ?? data['testId']; 
-          
-          if (mounted) {
-            // Navigate to Test Screen, passing the new Session ID
-            Navigator.pushNamed(context, '/test_screen', arguments: sessionId);
-          }
-        } else {
-          _showError("Failed to start test: ${response.body}");
-        }
+        response = await http.post(url, headers: headers, body: body);
       } 
-      // LOGIC 2: START REGULAR TEST (Placeholder)
-      else {
-         // Implement logic for full mock tests here later
-         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mock Test logic not connected yet.")));
+      // --- LOGIC 2: START SUBJECT TEST (POST) ---
+      else if (widget.selectedType == "Subjectwise") {
+        url = Uri.parse('$kBackendUrl/tests/start/subject');
+        final body = jsonEncode({
+          "subjectId": int.parse(widget.test.id),
+          "questionCount": widget.test.questionCount
+        });
+        response = await http.post(url, headers: headers, body: body);
+      }
+      // --- LOGIC 3: FULL MOCK (GET) ---
+      else if (widget.selectedType == "Full Syllabus") {
+        // Based on backend: @app.get("/getTest")
+        url = Uri.parse('$kBackendUrl/getTest');
+        response = await http.get(url, headers: headers);
+      }
+
+      if (response != null && response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final sessionId = data['sessionId'] ?? data['testId']; 
+        
+        if (mounted) {
+          Navigator.pushNamed(context, '/test_screen', arguments: sessionId);
+        }
+      } else {
+        _showError("Failed to start test: ${response?.body ?? 'Unknown error'}");
       }
 
     } catch (e) {
